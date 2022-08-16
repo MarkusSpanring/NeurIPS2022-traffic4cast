@@ -4,9 +4,11 @@ channels:
   - pytorch
   - defaults
   - conda-forge
+  - pyg
 dependencies:
   - pip
   - pytorch=1.11.0
+  - pyg
   - pip:
       # install only pytorch through conda to minimize discrepancies (version conflict resolution) between the two dependency managers.
       #====================================================
@@ -39,3 +41,5 @@ dependencies:
       - notebook==6.4.12
       - ipywidgets==7.7.1
       - seaborn==0.11.2
+      - tqdm
+      - jupyterlab

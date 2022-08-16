@@ -18,10 +18,18 @@ import torch
 from t4c22.t4c22_config import load_cc_labels
 from t4c22.t4c22_config import load_inputs
 from t4c22.t4c22_config import load_road_graph
+from t4c22.t4c22_config import load_nearest_ctr
 
 
 class TorchRoadGraphMapping:
-    def __init__(self, city: str, root: Path, df_filter, edge_attributes=None):
+    def __init__(
+        self,
+        city: str,
+        root: Path,
+        df_filter,
+        edge_attributes=None,
+        add_nearest_ctr_edge=False
+    ):
         self.df_filter = df_filter
 
         # load road graph
@@ -34,13 +42,22 @@ class TorchRoadGraphMapping:
         self.edge_records = df_edges.to_dict("records")
         edges = [(r["u"], r["v"]) for r in self.edge_records]
 
-        # `nodes: List[ExternalNodeId]`
+        if add_nearest_ctr_edge:
+            df_nearest_ctr = load_nearest_ctr(root, city)
+            nearest_ctr = [(u, v) for u, v in df_nearest_ctr.values if v != -1]
+            edges += nearest_ctr
+            edges = list(set(edges))
+
         nodes = [r["node_id"] for r in df_nodes.to_dict("records")]
 
         # enumerate nodes and edges and create mapping
         self.node_to_int_mapping = defaultdict(lambda: -1)
         for i, k in enumerate(nodes):
             self.node_to_int_mapping[k] = i
+
+        df_nodes["node_id"] = df_nodes["node_id"].astype("int64")
+        df_nodes["node_index"] = [self.node_to_int_mapping[x] for x in df_nodes["node_id"]]
+        self.df_nodes = df_nodes
 
         # edge_index: Tensor of size (2,num_edges) of InternalNodeId
         self.edge_index = torch.tensor([[self.node_to_int_mapping[n] for n, _ in edges], [self.node_to_int_mapping[n] for _, n in edges]], dtype=torch.long)
@@ -96,12 +113,13 @@ class TorchRoadGraphMapping:
 
         df_x["node_id"] = df_x["node_id"].astype("int64")
         df_x = df_x.explode("volumes_1h")
+
         assert len(df_x) % 4 == 0
         df_x = df_x.reset_index()
         df_x["slot"] = df_x.index % 4
         df_x["volumes_1h"] = df_x["volumes_1h"].astype("float")
 
-        x = torch.full(size=(len(self.node_to_int_mapping), 4), fill_value=float("nan"))
+        x = torch.full(size=(len(self.node_to_int_mapping), 6), fill_value=float("nan"))
 
         # (Mis-)use (day,t) for dataloading test sets where we do not exhibit day,t
         if day == "test":
@@ -111,9 +129,13 @@ class TorchRoadGraphMapping:
 
         data["node_index"] = [self.node_to_int_mapping[x] for x in data["node_id"]]
 
+
         # sanity check as defaultdict returns -1 for non-existing node_ids
         assert len(data[data["node_index"] < 0]) == 0
         x[data["node_index"].values, data["slot"].values] = torch.tensor(data["volumes_1h"].values).float()
+        x[self.df_nodes["node_index"].values, 4] = torch.tensor(self.df_nodes["x"].values).float()
+        x[self.df_nodes["node_index"].values, 5] = torch.tensor(self.df_nodes["y"].values).float()
+
         return x
 
     def load_cc_labels_day_t(self, basedir: Path, city: str, split: str, day: str, t: int, idx: int) -> torch.Tensor:

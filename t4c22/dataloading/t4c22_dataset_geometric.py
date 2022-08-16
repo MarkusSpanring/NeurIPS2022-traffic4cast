@@ -33,6 +33,7 @@ class T4c22GeometricDataset(torch_geometric.data.Dataset):
         cachedir: Optional[Path] = None,
         limit: int = None,
         day_t_filter=day_t_filter_weekdays_daytime_only,
+        add_nearest_ctr_edge=False
     ):
         """Dataset for t4c22 core competition (congestion classes) for one
         city.
@@ -41,7 +42,7 @@ class T4c22GeometricDataset(torch_geometric.data.Dataset):
         data at 91, 92, 93, 94 and y congestion classes at 95) I.e.
         overlapping sampling, but discarding samples going over midnight.
 
-        Missing values in input or labels are represented as nans, use `torch.nan_to_num`.
+        Missing values in input or labels are represented as nans, use `torch.nan_to_num.
 
         Parameters
         ----------
@@ -74,6 +75,7 @@ class T4c22GeometricDataset(torch_geometric.data.Dataset):
             edge_attributes=edge_attributes,
             root=root,
             df_filter=partial(day_t_filter_to_df_filter, filter=day_t_filter) if self.day_t_filter is not None else None,
+            add_nearest_ctr_edge=add_nearest_ctr_edge
         )
 
         # `day_t: List[Tuple[Y-m-d-str,int_0_96]]`
@@ -108,6 +110,8 @@ class T4c22GeometricDataset(torch_geometric.data.Dataset):
             cache_file = self.cachedir / f"data_{city}_{day}_{t}.pt"
             if cache_file.exists():
                 data = torch.load(cache_file)
+                # data.x = data.x.nan_to_num(-1)
+                # data.y = data.y.nan_to_num(4)
                 return data
 
         # x: 4 time steps of loop counters on nodes
@@ -122,8 +126,9 @@ class T4c22GeometricDataset(torch_geometric.data.Dataset):
         #         y (Tensor, optional) – Graph-level or node-level ground-truth labels with arbitrary shape. (default: None)
         #         pos (Tensor, optional) – Node position matrix with shape [num_nodes, num_dimensions]. (default: None)
         #         **kwargs (optional) – Additional attributes.
-
+        
         data = torch_geometric.data.Data(x=x, edge_index=self.torch_road_graph_mapping.edge_index, y=y, edge_attr=self.torch_road_graph_mapping.edge_attr)
+
         # x.size(): (num_nodes, 4) - loop counter data, a lot of NaNs!
         # y.size(): (num_edges, 1) - congestion classification data, contains NaNs.
 

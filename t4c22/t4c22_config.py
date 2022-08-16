@@ -103,6 +103,11 @@ df_filter_weekdays_daytime_only: DF_FILTER = partial(day_t_filter_to_df_filter, 
 # HELPERS FOR LOADING COMPETITION DATA (MOSTLY FROM PARQUET)
 # -----------------------------------------------------------------------------------------------------
 
+def load_nearest_ctr(basedir: Path, city: str) -> pd.DataFrame:
+    fn = basedir / "road_graph" / city / "nearest_ctr.parquet"
+    df_nearest_ctr = pq.read_table(fn).to_pandas()
+
+    return df_nearest_ctr
 
 def load_road_graph(basedir: Path, city: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Helper for loading edges and nodes data frame from basedir for the given
