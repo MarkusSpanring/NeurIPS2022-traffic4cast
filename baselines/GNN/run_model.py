@@ -1,6 +1,6 @@
 import statistics
 from collections import defaultdict
-
+import json
 import torch
 import torch_geometric
 import tqdm
@@ -27,7 +27,7 @@ def train(model, predictor, dataset, optimizer, batch_size, device, city_class_w
             dataset,
             batch_size=batch_size,
             shuffle=True,
-            num_workers=16
+            num_workers=32
         ),
         "train",
         total=len(dataset) // batch_size,
@@ -72,7 +72,7 @@ def test(model, predictor, validation_dataset, batch_size, device, city_class_we
             validation_dataset,
             batch_size=batch_size,
             shuffle=False,
-            num_workers=16
+            num_workers=32
         ),
         "test",
         total=len(validation_dataset),
@@ -123,7 +123,7 @@ if __name__ == "__main__":
     city_class_fractions
 
     city_class_weights = get_weights_from_class_fractions([city_class_fractions[c] for c in ["green", "yellow", "red"]])
-    city_class_weights.append(0.1) # weight for no data
+    city_class_weights.append(0.001) # weight for no data
     city_class_weights = torch.tensor(city_class_weights).float()
     city_class_weights
 
@@ -131,21 +131,8 @@ if __name__ == "__main__":
     eval_steps = 1
     epochs = 20
 
-    model_parameters = {
-        "GNN": {
-            "hidden_layer": 3,
-            "in_features": 6,
-            "hidden_features": 128,
-            "out_features": 128
-        },
-        "Predictor": {
-            "in_channels": 128,
-            "hidden_channels": 256,
-            "out_channels": 4,
-            "num_layers": 3,
-            "dropout": 0.0
-        }
-    }
+    with open("model_parameters.json", "r") as f:
+        model_parameters = json.load(f)
 
     device = 0
     device = f"cuda:{device}" if torch.cuda.is_available() else "cpu"
@@ -161,7 +148,7 @@ if __name__ == "__main__":
     val_losses = defaultdict(lambda: -1)
     val_loss = ""
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=5e-4, weight_decay=0.01)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=5e-4, weight_decay=0.0001)
 
     pbar = tqdm.tqdm(range(1, 1 + epochs), "epochs", total=epochs)
     for epoch in pbar:
