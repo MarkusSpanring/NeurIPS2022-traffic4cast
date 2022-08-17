@@ -27,7 +27,7 @@ def train(model, predictor, dataset, optimizer, batch_size, device, city_class_w
             dataset,
             batch_size=batch_size,
             shuffle=True,
-            num_workers=32
+            num_workers=8
         ),
         "train",
         total=len(dataset) // batch_size,
@@ -37,7 +37,7 @@ def train(model, predictor, dataset, optimizer, batch_size, device, city_class_w
         data = data.to(device)
 
         data.x = data.x.nan_to_num(-1)
-        data.y = data.y.nan_to_num(3)
+        data.y = data.y.nan_to_num(0)
 
         h = model(data)
         assert (h.isnan()).sum() == 0, h
@@ -72,7 +72,7 @@ def test(model, predictor, validation_dataset, batch_size, device, city_class_we
             validation_dataset,
             batch_size=batch_size,
             shuffle=False,
-            num_workers=32
+            num_workers=8
         ),
         "test",
         total=len(validation_dataset),
@@ -81,7 +81,7 @@ def test(model, predictor, validation_dataset, batch_size, device, city_class_we
         data = data.to(device)
 
         data.x = data.x.nan_to_num(-1)
-        data.y = data.y.nan_to_num(3)
+        data.y = data.y.nan_to_num(0)
         h = model(data)
 
         x_i = torch.index_select(h, 0, data.edge_index[0])
@@ -96,9 +96,11 @@ def test(model, predictor, validation_dataset, batch_size, device, city_class_we
     y = torch.cat(y_list, 0)
     y = y.long()
     loss = torch.nn.CrossEntropyLoss(weight=city_class_weights, ignore_index=-1)
+    loss_proxy = torch.nn.CrossEntropyLoss(ignore_index=-1)
     total_loss = loss(y_hat, y)
+    total_loss_proxy = loss_proxy(y_hat, y)
 
-    return total_loss
+    return float(total_loss), float(total_loss_proxy)
 
 
 if __name__ == "__main__":
@@ -120,16 +122,17 @@ if __name__ == "__main__":
     train_dataset, val_dataset = torch.utils.data.random_split(dataset, [spl, len(dataset) - spl])
 
     city_class_fractions = class_fractions[city]
-    city_class_fractions
+
 
     city_class_weights = get_weights_from_class_fractions([city_class_fractions[c] for c in ["green", "yellow", "red"]])
-    city_class_weights.append(0.001) # weight for no data
+    # city_class_weights.append(0.001) # weight for no data
+    city_class_weights = [1, 5, 10]
     city_class_weights = torch.tensor(city_class_weights).float()
-    city_class_weights
+
 
     batch_size = 1
     eval_steps = 1
-    epochs = 20
+    epochs = 40
 
     with open("model_parameters.json", "r") as f:
         model_parameters = json.load(f)
@@ -140,15 +143,26 @@ if __name__ == "__main__":
 
     city_class_weights = city_class_weights.to(device)
 
-    model = CongestioNN(**model_parameters["GNN"]).to(device)
+    model = CongestioNN(**model_parameters["GNN"])
 
-    predictor = LinkPredictor(**model_parameters["Predictor"]).to(device)
+    predictor = LinkPredictor(**model_parameters["Predictor"])
 
     train_losses = defaultdict(lambda: [])
     val_losses = defaultdict(lambda: -1)
     val_loss = ""
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=5e-4, weight_decay=0.0001)
+    model = model.to(device)
+    predictor = predictor.to(device)
+
+    optimizer = torch.optim.AdamW(
+        [
+            {"params": model.parameters()},
+            {"params": predictor.parameters()}
+        ],
+        lr=1e-4,
+        weight_decay=0.001
+    )
+
 
     pbar = tqdm.tqdm(range(1, 1 + epochs), "epochs", total=epochs)
     for epoch in pbar:
@@ -161,7 +175,7 @@ if __name__ == "__main__":
             device=device,
             city_class_weights=city_class_weights
         )
-        train_losses[epoch] = losses
+        train_losses[epoch] = statistics.mean(losses)
 
         if epoch % eval_steps == 0:
 
@@ -177,4 +191,7 @@ if __name__ == "__main__":
 
             torch.save(model.state_dict(), f"GNN_model_{epoch:03d}.pt")
             torch.save(predictor.state_dict(), f"GNN_predictor_{epoch:03d}.pt")
-        pbar.set_postfix({"train loss": statistics.mean(losses), "val loss": float(val_loss)})
+        pbar.set_postfix({"train loss": statistics.mean(losses), "val loss": val_loss})
+
+print(train_losses)
+print(val_losses)
