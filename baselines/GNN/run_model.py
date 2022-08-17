@@ -37,7 +37,7 @@ def train(model, predictor, dataset, optimizer, batch_size, device, city_class_w
         data = data.to(device)
 
         data.x = data.x.nan_to_num(-1)
-        data.y = data.y.nan_to_num(0)
+        # data.y = data.y.nan_to_num(0)
 
         h = model(data)
         assert (h.isnan()).sum() == 0, h
@@ -81,7 +81,7 @@ def test(model, predictor, validation_dataset, batch_size, device, city_class_we
         data = data.to(device)
 
         data.x = data.x.nan_to_num(-1)
-        data.y = data.y.nan_to_num(0)
+        # data.y = data.y.nan_to_num(0)
         h = model(data)
 
         x_i = torch.index_select(h, 0, data.edge_index[0])
@@ -118,7 +118,7 @@ if __name__ == "__main__":
         cachedir=Path("tmp/processed"),
         add_nearest_ctr_edge=True
     )
-    spl = int(((0.8 * len(dataset)) // 2) * 2)
+    spl = int(((0.7 * len(dataset)) // 2) * 2)
     train_dataset, val_dataset = torch.utils.data.random_split(dataset, [spl, len(dataset) - spl])
 
     city_class_fractions = class_fractions[city]
@@ -126,7 +126,6 @@ if __name__ == "__main__":
 
     city_class_weights = get_weights_from_class_fractions([city_class_fractions[c] for c in ["green", "yellow", "red"]])
     # city_class_weights.append(0.001) # weight for no data
-    city_class_weights = [1, 5, 10]
     city_class_weights = torch.tensor(city_class_weights).float()
 
 
