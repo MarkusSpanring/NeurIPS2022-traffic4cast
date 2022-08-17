@@ -51,7 +51,7 @@ class TorchRoadGraphMapping:
         nodes = [r["node_id"] for r in df_nodes.to_dict("records")]
 
         # enumerate nodes and edges and create mapping
-        self.node_to_int_mapping = defaultdict(lambda: -1)
+        self.node_to_int_mapping = {}
         for i, k in enumerate(nodes):
             self.node_to_int_mapping[k] = i
 
@@ -63,7 +63,7 @@ class TorchRoadGraphMapping:
         self.edge_index = torch.tensor([[self.node_to_int_mapping[n] for n, _ in edges], [self.node_to_int_mapping[n] for _, n in edges]], dtype=torch.long)
 
         # edge_index_d: (ExternalNodeId,ExternalNodeId) -> InternalNodeId
-        self.edge_index_d = defaultdict(lambda: -1)
+        self.edge_index_d = {}
         self.edges = edges
         self.nodes = nodes
         for i, (u, v) in enumerate(edges):
