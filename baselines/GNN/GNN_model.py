@@ -81,18 +81,6 @@ class CongestioNN(torch.nn.Module):
 
         self.cgnn = torch.nn.ModuleList(modules=modules)
 
-        self.head_pre_pool = nn.Sequential(
-            nn.Linear(self.out_features, self.hidden_features),
-            Swish(),
-            nn.Linear(self.hidden_features, self.hidden_features)
-        )
-
-        self.head_post_pool = nn.Sequential(
-            nn.Linear(self.hidden_features, self.hidden_features),
-            Swish(),
-            nn.Linear(hidden_features, 1)
-        )
-
         self.embedding_mlp = nn.Linear(self.in_features, self.out_features)
 
     def forward(self, data):
@@ -108,25 +96,31 @@ class CongestioNN(torch.nn.Module):
 
 
 class LinkPredictor(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels, num_layers, dropout):
+    def __init__(self, in_channels, hidden_channels, out_channels, hidden_layers, dropout):
         super(LinkPredictor, self).__init__()
 
+        self.hidden_layers = hidden_layers
         self.lins = torch.nn.ModuleList()
-        self.lins.append(torch.nn.Linear(in_channels, hidden_channels))
-        for _ in range(num_layers - 2):
-            self.lins.append(torch.nn.Linear(hidden_channels, hidden_channels))
-        self.lins.append(torch.nn.Linear(hidden_channels, out_channels))
+        self.input = torch.nn.Linear(2 * in_channels, hidden_channels)
+
+        modules = []
+        for _ in range(hidden_layers):
+            modules.append(torch.nn.Linear(hidden_channels, hidden_channels))
+        self.hidden = torch.nn.ModuleList(modules=modules)
+
+        self.output = torch.nn.Linear(hidden_channels, out_channels)
 
         self.swish = Swish()
 
         self.dropout = dropout
 
     def forward(self, x_i, x_j):
-        x = x_i * x_j
-        for lin in self.lins[:-1]:
-            x = lin(x)
+
+        x = self.swish(self.input(torch.cat((x_i, x_j), dim=1)))
+        for i in range(self.hidden_layers):
+            x = self.hidden[i](x)
             x = self.swish(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
-        x = self.lins[-1](x)
+        x = self.swish(self.output(x))
 
         return x
