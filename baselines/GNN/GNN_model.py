@@ -36,6 +36,7 @@ class GNN_Layer(MessagePassing):
         self.update_net = nn.Sequential(
             nn.Linear(in_features + hidden_features, hidden_features),
             Swish(),
+            nn.BatchNorm1d(hidden_features),
             nn.Linear(hidden_features, out_features),
             Swish()
         )
@@ -103,7 +104,7 @@ class LinkPredictor(torch.nn.Module):
 
         self.hidden_layers = hidden_layers
         self.lins = torch.nn.ModuleList()
-        self.input = torch.nn.Linear(in_channels, hidden_channels)
+        self.input = torch.nn.Linear(2 * in_channels, hidden_channels)
 
         modules = []
         for _ in range(hidden_layers):
@@ -112,17 +113,17 @@ class LinkPredictor(torch.nn.Module):
 
         self.output = torch.nn.Linear(hidden_channels, out_channels)
 
-        self.swish = Swish()
+        self.act = torch.nn.ReLU()
 
         self.dropout = dropout
 
     def forward(self, x_i, x_j):
-        x = x_i * x_j
-        # x = self.input(torch.cat((x_i, x_j), dim=1))
-        x = self.input(x)
+        # x = x_i * x_j
+        # x = self.input(x)
+        x = self.input(torch.cat((x_i, x_j), dim=1))
         for i in range(self.hidden_layers):
             x = self.hidden[i](x)
-            x = self.swish(x)
+            x = self.act(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.output(x)
 

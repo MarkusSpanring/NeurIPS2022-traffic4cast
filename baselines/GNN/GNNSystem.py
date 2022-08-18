@@ -1,3 +1,5 @@
+import argparse
+import sys
 import json
 import torch
 import torch_geometric
@@ -13,12 +15,31 @@ from t4c22.dataloading.t4c22_dataset_geometric import T4c22GeometricDataset
 
 from GNN_model import CongestioNN
 from GNN_model import LinkPredictor
+from pytorch_lightning.callbacks import TQDMProgressBar
+
+
+def create_parser(args):
+    parser = argparse.ArgumentParser()
+
+    help_msg = "City"
+    parser.add_argument(
+        "-c", "--city", type=str, default="london", help=help_msg
+    )
+    help_msg = "Device"
+    parser.add_argument(
+        "-d", "--device", type=int, default=0, help=help_msg
+    )
+
+    args = parser.parse_args(args)
+
+    return parser, args
 
 
 class CongestionSystem(pl.LightningModule):
     def __init__(self, city):
         super().__init__()
 
+        self.city = city
 
         with open("model_parameters.json", "r") as f:
             model_parameters = json.load(f)
@@ -29,20 +50,22 @@ class CongestionSystem(pl.LightningModule):
             [city_class_fractions[c] for c in ["green", "yellow", "red"]]
         )
         if model_parameters["Predictor"]["out_channels"] == 4:
-            city_class_weights.append(0.01)  # weight for no data
+            city_class_weights = city_class_weights + [0.07]  # weight for no data
+
         city_class_weights = torch.tensor(city_class_weights).float()
-        city_class_weights = city_class_weights
 
         self.loss = torch.nn.CrossEntropyLoss(
-            weight=city_class_weights, ignore_index=-1
+            weight=city_class_weights, ignore_index=3
         )
-
 
         self.model = CongestioNN(**model_parameters["GNN"])
 
         self.predictor = LinkPredictor(**model_parameters["Predictor"])
 
     def forward(self, data):
+
+        data.x = data.x.nan_to_num(-1)
+        data.y = data.y.nan_to_num(3)
 
         h = self.model(data)
         assert (h.isnan()).sum() == 0, h
@@ -54,10 +77,6 @@ class CongestionSystem(pl.LightningModule):
         return y_hat
 
     def training_step(self, batch, batch_idx):
-
-        batch.x = batch.x.nan_to_num(-1)
-        batch.y = batch.y.nan_to_num(-1)
-
         y_hat = self(batch)
 
         y = batch.y.long()
@@ -65,16 +84,16 @@ class CongestionSystem(pl.LightningModule):
         return loss
 
     def training_epoch_end(self, outputs):
-        torch.save(self.model.state_dict(), f"GNN_model_{self.current_epoch:03d}.pt")
         torch.save(
-            self.predictor.state_dict(), f"GNN_predictor_{self.current_epoch:03d}.pt"
+            self.model.state_dict(),
+            f"{self.city}_model_{self.current_epoch:03d}.pt"
+        )
+        torch.save(
+            self.predictor.state_dict(),
+            f"{self.city}_predictor_{self.current_epoch:03d}.pt"
         )
 
     def validation_step(self, batch, batch_idx):
-
-        batch.x = batch.x.nan_to_num(-1)
-        batch.y = batch.y.nan_to_num(-1)
-
         y_hat = self(batch)
 
         y = batch.y.long()
@@ -88,18 +107,23 @@ class CongestionSystem(pl.LightningModule):
                 {"params": self.model.parameters()},
                 {"params": self.predictor.parameters()}
             ],
-            lr=1e-3,
-            weight_decay=0.001
+            lr=5e-4,
+            weight_decay=0.00001
         )
-        return optimizer
+        scheduler = torch.optim.lr_scheduler.StepLR(
+            optimizer, step_size=2, gamma=1.
+        )
+        return [optimizer], [scheduler]
 
 
 if __name__ == '__main__':
 
-    t4c_apply_basic_logging_config(loglevel="DEBUG")
+    parser, args = create_parser(sys.argv[1:])
+
+    t4c_apply_basic_logging_config(loglevel="INFO")
     # load BASEDIR from file, change to your data root
     BASEDIR = load_basedir(fn="t4c22_config.json", pkg=t4c22)
-    city = "london"
+    city = args.city
     # city = "melbourne"
     # city = "madrid"
     dataset = T4c22GeometricDataset(
@@ -129,5 +153,10 @@ if __name__ == '__main__':
     )
 
     system = CongestionSystem(city)
-    trainer = pl.Trainer(devices=[0], accelerator="gpu")
+    trainer = pl.Trainer(
+        devices=[args.device],
+        accelerator="gpu",
+        max_epochs=3,
+        callbacks=[TQDMProgressBar(refresh_rate=100)]
+    )
     trainer.fit(system, train_loader, val_loader)
