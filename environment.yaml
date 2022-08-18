@@ -42,4 +42,5 @@ dependencies:
       - ipywidgets==7.7.1
       - seaborn==0.11.2
       - tqdm
+      - pytorch-lightning==1.6.5
       - jupyterlab
