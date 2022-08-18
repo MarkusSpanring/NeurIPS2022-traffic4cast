@@ -103,7 +103,7 @@ class LinkPredictor(torch.nn.Module):
 
         self.hidden_layers = hidden_layers
         self.lins = torch.nn.ModuleList()
-        self.input = torch.nn.Linear(2 * in_channels, hidden_channels)
+        self.input = torch.nn.Linear(in_channels, hidden_channels)
 
         modules = []
         for _ in range(hidden_layers):
@@ -117,9 +117,9 @@ class LinkPredictor(torch.nn.Module):
         self.dropout = dropout
 
     def forward(self, x_i, x_j):
-        # x = x_i * x_j
-        x = self.swish(self.input(torch.cat((x_i, x_j), dim=1)))
-        # x = self.input(x)
+        x = x_i * x_j
+        # x = self.input(torch.cat((x_i, x_j), dim=1))
+        x = self.input(x)
         for i in range(self.hidden_layers):
             x = self.hidden[i](x)
             x = self.swish(x)

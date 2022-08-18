@@ -2,14 +2,14 @@
     "GNN": {
         "hidden_layer": 2,
         "in_features": 6,
-        "hidden_features": 128,
-        "out_features": 128
+        "hidden_features": 32,
+        "out_features": 32
     },
     "Predictor": {
-        "in_channels": 128,
-        "hidden_channels": 1024,
+        "in_channels": 32,
+        "hidden_channels": 512,
         "out_channels": 4,
         "hidden_layers": 1,
-        "dropout": 0.0
+        "dropout": 0.1
     }
 }

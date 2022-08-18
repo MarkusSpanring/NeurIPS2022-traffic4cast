@@ -19,21 +19,24 @@ class CongestionSystem(pl.LightningModule):
     def __init__(self, city):
         super().__init__()
 
+
+        with open("model_parameters.json", "r") as f:
+            model_parameters = json.load(f)
+
         city_class_fractions = class_fractions[city]
 
         city_class_weights = get_weights_from_class_fractions(
             [city_class_fractions[c] for c in ["green", "yellow", "red"]]
         )
-        city_class_weights.append(0.6)  # weight for no data
+        if model_parameters["Predictor"]["out_channels"] == 4:
+            city_class_weights.append(0.01)  # weight for no data
         city_class_weights = torch.tensor(city_class_weights).float()
         city_class_weights = city_class_weights
 
         self.loss = torch.nn.CrossEntropyLoss(
-            weight=city_class_weights, ignore_index=-1, reduction="mean"
+            weight=city_class_weights, ignore_index=-1
         )
 
-        with open("model_parameters.json", "r") as f:
-            model_parameters = json.load(f)
 
         self.model = CongestioNN(**model_parameters["GNN"])
 
@@ -53,7 +56,7 @@ class CongestionSystem(pl.LightningModule):
     def training_step(self, batch, batch_idx):
 
         batch.x = batch.x.nan_to_num(-1)
-        batch.y = batch.y.nan_to_num(3)
+        batch.y = batch.y.nan_to_num(-1)
 
         y_hat = self(batch)
 
@@ -70,7 +73,7 @@ class CongestionSystem(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
 
         batch.x = batch.x.nan_to_num(-1)
-        batch.y = batch.y.nan_to_num(3)
+        batch.y = batch.y.nan_to_num(-1)
 
         y_hat = self(batch)
 
@@ -85,8 +88,8 @@ class CongestionSystem(pl.LightningModule):
                 {"params": self.model.parameters()},
                 {"params": self.predictor.parameters()}
             ],
-            lr=5e-3,
-            weight_decay=0.00001
+            lr=5e-5,
+            weight_decay=0.001
         )
         return optimizer
 
@@ -126,5 +129,5 @@ if __name__ == '__main__':
     )
 
     system = CongestionSystem(city)
-    trainer = pl.Trainer(devices=1, accelerator="gpu")
+    trainer = pl.Trainer(devices=[0], accelerator="gpu")
     trainer.fit(system, train_loader, val_loader)
