@@ -27,25 +27,25 @@ def plot_segment_classifications_simple(  # noqa:C901
         for t in range(len(classifications)):
             cc = classifications[t]
 
-            if cc == 0:
+            if cc == 3:
                 ax.add_patch(Rectangle((t, 0), 1, 1, fill=True, facecolor="grey"))
-            elif cc == 1:
+            elif cc == 0:
                 ax.add_patch(Rectangle((t, 1), 1, 1, fill=True, facecolor="green"))
-            elif cc == 2:
+            elif cc == 1:
                 ax.add_patch(Rectangle((t, 2), 1, 1, fill=True, facecolor="yellow"))
-            elif cc == 3:
+            elif cc == 2:
                 ax.add_patch(Rectangle((t, 3), 1, 1, fill=True, facecolor="red"))
             if other_classifications is not None:
                 other_cc = other_classifications[t]
                 if other_cc == cc:
                     continue
-                if other_cc == 0:
+                if other_cc == 3:
                     ax.add_patch(Rectangle((t, 0), 1, 1, fill=True, hatch="x", facecolor="lightgrey"))
-                elif other_cc == 1:
+                elif other_cc == 0:
                     ax.add_patch(Rectangle((t, 1), 1, 1, fill=True, hatch="x", facecolor="lightgreen"))
-                elif other_cc == 2:
+                elif other_cc == 1:
                     ax.add_patch(Rectangle((t, 2), 1, 1, fill=True, hatch="x", facecolor="khaki"))
-                elif other_cc == 3:
+                elif other_cc == 2:
                     ax.add_patch(Rectangle((t, 3), 1, 1, fill=True, hatch="x", facecolor="mistyrose"))
         ax.set_ylim([0, 4])
 

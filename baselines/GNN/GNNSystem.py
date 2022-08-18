@@ -88,7 +88,7 @@ class CongestionSystem(pl.LightningModule):
                 {"params": self.model.parameters()},
                 {"params": self.predictor.parameters()}
             ],
-            lr=5e-5,
+            lr=1e-3,
             weight_decay=0.001
         )
         return optimizer
