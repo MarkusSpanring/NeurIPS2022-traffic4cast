@@ -96,7 +96,9 @@ class CongestioNN(torch.nn.Module):
 
 
 class LinkPredictor(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels, hidden_layers, dropout):
+    def __init__(
+        self, in_channels, hidden_channels, out_channels, hidden_layers, dropout
+    ):
         super(LinkPredictor, self).__init__()
 
         self.hidden_layers = hidden_layers
@@ -115,12 +117,13 @@ class LinkPredictor(torch.nn.Module):
         self.dropout = dropout
 
     def forward(self, x_i, x_j):
-
+        # x = x_i * x_j
         x = self.swish(self.input(torch.cat((x_i, x_j), dim=1)))
+        # x = self.input(x)
         for i in range(self.hidden_layers):
             x = self.hidden[i](x)
             x = self.swish(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
-        x = self.swish(self.output(x))
+        x = self.output(x)
 
         return x

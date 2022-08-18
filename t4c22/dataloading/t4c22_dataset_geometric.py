@@ -64,7 +64,11 @@ class T4c22GeometricDataset(torch_geometric.data.Dataset):
         super().__init__(root)
         self.root: Path = root
 
-        self.cachedir = cachedir
+        if add_nearest_ctr_edge:
+            self.cachedir = cachedir / "nearest_ctr"
+        else:
+            self.cachedir = cachedir / "vanilla"
+
         self.split = split
         self.city = city
         self.limit = limit

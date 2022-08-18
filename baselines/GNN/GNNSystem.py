@@ -1,5 +1,3 @@
-import statistics
-from collections import defaultdict
 import json
 import torch
 import torch_geometric
@@ -23,19 +21,19 @@ class CongestionSystem(pl.LightningModule):
 
         city_class_fractions = class_fractions[city]
 
-        city_class_weights = get_weights_from_class_fractions([city_class_fractions[c] for c in ["green", "yellow", "red"]])
-        # city_class_weights.append(0.001) # weight for no data
+        city_class_weights = get_weights_from_class_fractions(
+            [city_class_fractions[c] for c in ["green", "yellow", "red"]]
+        )
+        city_class_weights.append(0.6)  # weight for no data
         city_class_weights = torch.tensor(city_class_weights).float()
         city_class_weights = city_class_weights
 
         self.loss = torch.nn.CrossEntropyLoss(
-            weight=city_class_weights, ignore_index=-1
+            weight=city_class_weights, ignore_index=-1, reduction="mean"
         )
 
         with open("model_parameters.json", "r") as f:
             model_parameters = json.load(f)
-
-        city_class_weights = city_class_weights
 
         self.model = CongestioNN(**model_parameters["GNN"])
 
@@ -55,7 +53,7 @@ class CongestionSystem(pl.LightningModule):
     def training_step(self, batch, batch_idx):
 
         batch.x = batch.x.nan_to_num(-1)
-        batch.y = batch.y.nan_to_num(0)
+        batch.y = batch.y.nan_to_num(3)
 
         y_hat = self(batch)
 
@@ -63,18 +61,21 @@ class CongestionSystem(pl.LightningModule):
         loss = self.loss(y_hat, y)
         return loss
 
+    def training_epoch_end(self, outputs):
+        torch.save(self.model.state_dict(), f"GNN_model_{self.current_epoch:03d}.pt")
+        torch.save(
+            self.predictor.state_dict(), f"GNN_predictor_{self.current_epoch:03d}.pt"
+        )
+
     def validation_step(self, batch, batch_idx):
 
         batch.x = batch.x.nan_to_num(-1)
-        batch.y = batch.y.nan_to_num(0)
+        batch.y = batch.y.nan_to_num(3)
 
         y_hat = self(batch)
 
         y = batch.y.long()
         loss = self.loss(y_hat, y)
-
-        torch.save(self.model.state_dict(), f"GNN_model_{self.current_epoch:03d}.pt")
-        torch.save(self.predictor.state_dict(), f"GNN_predictor_{self.current_epoch:03d}.pt")
 
         return loss
 
@@ -84,8 +85,8 @@ class CongestionSystem(pl.LightningModule):
                 {"params": self.model.parameters()},
                 {"params": self.predictor.parameters()}
             ],
-            lr=5e-4,
-            weight_decay=0.001
+            lr=5e-3,
+            weight_decay=0.00001
         )
         return optimizer
 
@@ -106,7 +107,9 @@ if __name__ == '__main__':
         add_nearest_ctr_edge=True
     )
     spl = int(((0.8 * len(dataset)) // 2) * 2)
-    train_dataset, val_dataset = torch.utils.data.random_split(dataset, [spl, len(dataset) - spl])
+    train_dataset, val_dataset = torch.utils.data.random_split(
+        dataset, [spl, len(dataset) - spl]
+    )
 
     train_loader = torch_geometric.loader.dataloader.DataLoader(
         train_dataset,
@@ -123,5 +126,5 @@ if __name__ == '__main__':
     )
 
     system = CongestionSystem(city)
-    trainer = pl.Trainer(devices=4, accelerator="gpu")
+    trainer = pl.Trainer(devices=1, accelerator="gpu")
     trainer.fit(system, train_loader, val_loader)

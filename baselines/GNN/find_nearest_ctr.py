@@ -1,6 +1,7 @@
 from functools import partial
 from pathlib import Path
 import numpy as np
+import tqdm
 
 import t4c22
 from t4c22.t4c22_config import load_basedir
@@ -49,7 +50,7 @@ def bfs(start, graph, hotlist, return_path=False):
 if __name__ == "__main__":
     BASEDIR = load_basedir(fn="t4c22_config.json", pkg=t4c22)
 
-    city = "london"
+    city = "madrid"
     root = BASEDIR
 
     df_edges, df_nodes = load_road_graph(root, city)
@@ -57,8 +58,17 @@ if __name__ == "__main__":
     road_graph = df_edges.groupby("u")["v"].apply(list).reset_index(name="children").copy(deep=True)
 
     ctr_list = unique_ctr_list(root, city=city)
-    fn = partial(bfs, graph=road_graph, hotlist=ctr_list)
-    road_graph["nearest_ctr"] = road_graph["u"].apply(fn)
+    # fn = partial(bfs, graph=road_graph, hotlist=ctr_list)
+    nearest_ctr_lst = []
+    pbar = tqdm.tqdm(road_graph["u"])
+    for u in pbar:
+        pbar.set_postfix({"node: ": str(u)})
+        nearest_ctr_lst.append(bfs(u, graph=road_graph, hotlist=ctr_list))
+        # print(u, nearest_ctr_lst)
+
+
+    # road_graph["nearest_ctr"] = road_graph["u"].apply(fn)
+    road_graph["nearest_ctr"] = nearest_ctr_lst
 
     nearest_ctr = road_graph[["u", "nearest_ctr"]].copy(deep=True)
     nearest_ctr = nearest_ctr.rename(columns={"u": "node_id"})
