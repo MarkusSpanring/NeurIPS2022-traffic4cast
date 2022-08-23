@@ -16,6 +16,7 @@ from t4c22.dataloading.t4c22_dataset_geometric import T4c22GeometricDataset
 from GNN_model import CongestioNN
 from GNN_model import LinkPredictor
 from pytorch_lightning.callbacks import TQDMProgressBar
+from pytorch_lightning.loggers import TensorBoardLogger
 
 
 def create_parser(args):
@@ -65,6 +66,8 @@ class CongestionSystem(pl.LightningModule):
     def forward(self, data):
 
         data.x = data.x.nan_to_num(-1)
+        data.x[:, 4] = (data.x[:, 4] + 0.14059608) / 0.11106573
+        data.x[:, 5] = (data.x[:, 5] - 51.493862) / 0.096448936
         data.y = data.y.nan_to_num(3)
 
         h = self.model(data)
@@ -81,6 +84,8 @@ class CongestionSystem(pl.LightningModule):
 
         y = batch.y.long()
         loss = self.loss(y_hat, y)
+
+        self.log("loss/train", loss, on_step=True, on_epoch=True)
         return loss
 
     def training_epoch_end(self, outputs):
@@ -98,7 +103,7 @@ class CongestionSystem(pl.LightningModule):
 
         y = batch.y.long()
         loss = self.loss(y_hat, y)
-
+        self.log("loss/val", loss, on_step=True, on_epoch=True)
         return loss
 
     def configure_optimizers(self):
@@ -107,11 +112,11 @@ class CongestionSystem(pl.LightningModule):
                 {"params": self.model.parameters()},
                 {"params": self.predictor.parameters()}
             ],
-            lr=5e-4,
+            lr=1e-4,
             weight_decay=0.00001
         )
         scheduler = torch.optim.lr_scheduler.StepLR(
-            optimizer, step_size=2, gamma=1.
+            optimizer, step_size=1, gamma=0.1
         )
         return [optimizer], [scheduler]
 
@@ -157,6 +162,7 @@ if __name__ == '__main__':
         devices=[args.device],
         accelerator="gpu",
         max_epochs=3,
+        logger=TensorBoardLogger(""),
         callbacks=[TQDMProgressBar(refresh_rate=100)]
     )
     trainer.fit(system, train_loader, val_loader)

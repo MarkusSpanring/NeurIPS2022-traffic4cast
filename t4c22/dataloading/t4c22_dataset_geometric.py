@@ -114,15 +114,15 @@ class T4c22GeometricDataset(torch_geometric.data.Dataset):
             cache_file = self.cachedir / f"data_{city}_{day}_{t}.pt"
             if cache_file.exists():
                 data = torch.load(cache_file)
-                # data.x = data.x.nan_to_num(-1)
-                # data.y = data.y.nan_to_num(4)
                 return data
 
         # x: 4 time steps of loop counters on nodes
         x = self.torch_road_graph_mapping.load_inputs_day_t(basedir=basedir, city=city, split=split, day=day, t=t, idx=idx)
 
         # y: congestion classes on edges at +60'
-        y = self.torch_road_graph_mapping.load_cc_labels_day_t(basedir=basedir, city=city, split=split, day=day, t=t, idx=idx)
+        y = None
+        if self.split != "test":
+            y = self.torch_road_graph_mapping.load_cc_labels_day_t(basedir=basedir, city=city, split=split, day=day, t=t, idx=idx)
         # https://pytorch-geometric.readthedocs.io/en/latest/modules/data.html:
         #         x (Tensor, optional) – Node feature matrix with shape [num_nodes, num_node_features]. (default: None)
         #         edge_index (LongTensor, optional) – Graph connectivity in COO format with shape [2, num_edges]. (default: None)
@@ -130,7 +130,7 @@ class T4c22GeometricDataset(torch_geometric.data.Dataset):
         #         y (Tensor, optional) – Graph-level or node-level ground-truth labels with arbitrary shape. (default: None)
         #         pos (Tensor, optional) – Node position matrix with shape [num_nodes, num_dimensions]. (default: None)
         #         **kwargs (optional) – Additional attributes.
-        
+
         data = torch_geometric.data.Data(x=x, edge_index=self.torch_road_graph_mapping.edge_index, y=y, edge_attr=self.torch_road_graph_mapping.edge_attr)
 
         # x.size(): (num_nodes, 4) - loop counter data, a lot of NaNs!

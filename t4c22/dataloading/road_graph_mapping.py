@@ -46,7 +46,7 @@ class TorchRoadGraphMapping:
             df_nearest_ctr = load_nearest_ctr(root, city)
             nearest_ctr = [(u, v) for u, v in df_nearest_ctr.values if v != -1]
             edges += nearest_ctr
-            edges = list(set(edges))
+            edges = sorted(list(set(edges)))
 
         nodes = [r["node_id"] for r in df_nodes.to_dict("records")]
 
